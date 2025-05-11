@@ -13,31 +13,25 @@ local RightClickHeld = false
 local AimbotMode = "Instant" -- "Instant" or "Smooth"
 local Smoothness = 0
 local MaxDistance = 1000
-local FOVRadius = 100
+local FOVRadius = 120 -- slightly bigger
 
 local CurrentTarget = nil
 
 --// VISIBILITY CHECK INCLUDING FAKE HEADS
 local function isVisible(part)
-	if not part or not part.Position then return false end
+	if not part or not part:IsA("BasePart") then return false end
 
 	local origin = Camera.CFrame.Position
-	local direction = (part.Position - origin).Unit * 5000
-
+	local direction = (part.Position - origin)
 	local rayParams = RaycastParams.new()
 	rayParams.FilterType = Enum.RaycastFilterType.Blacklist
 	rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
 	rayParams.IgnoreWater = true
 
-	local result = workspace:Raycast(origin, direction, rayParams)
-
-	if result then
-		-- Allow if ray hits the actual part or something in the character
-		if part.Name:find("FakeHead_") then
-			return result.Instance == part
-		else
-			return result.Instance:IsDescendantOf(part.Parent)
-		end
+	local result = workspace:Raycast(origin, direction.Unit * direction.Magnitude, rayParams)
+	if not result then return false end
+	if result.Instance == part or result.Instance:IsDescendantOf(part.Parent) then
+		return true
 	end
 
 	return false
@@ -53,8 +47,7 @@ local function getHeadTarget(character)
 
 	local name = "FakeHead_" .. character.Name
 	local existing = workspace:FindFirstChild(name)
-
-	local offsetY = 1.75
+	local offsetY = 1.70
 
 	if existing then
 		existing.CFrame = root.CFrame * CFrame.new(0, offsetY, 0)
@@ -82,7 +75,7 @@ local function getValidTarget()
 
 	local closest, minDist = nil, MaxDistance
 	local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-	local radius = FOVRadius * 0.8 -- match with adjusted FOV circle
+	local radius = FOVRadius -- already adjusted
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer and player.Character then
@@ -91,13 +84,15 @@ local function getValidTarget()
 				local head = getHeadTarget(player.Character)
 				if head and isVisible(head) then
 					local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-					local head2D = Vector2.new(screenPos.X, screenPos.Y)
-					local distanceFromCenter = (head2D - screenCenter).Magnitude
+					if onScreen then
+						local head2D = Vector2.new(screenPos.X, screenPos.Y)
+						local distanceFromCenter = (head2D - screenCenter).Magnitude
 
-					local worldDistance = (head.Position - origin).Magnitude
-					if onScreen and distanceFromCenter <= radius and worldDistance < minDist then
-						closest = head
-						minDist = worldDistance
+						local worldDistance = (head.Position - origin).Magnitude
+						if distanceFromCenter <= radius and worldDistance < minDist then
+							closest = head
+							minDist = worldDistance
+						end
 					end
 				end
 			end
@@ -198,15 +193,13 @@ FOVGui.IgnoreGuiInset = true
 FOVGui.ResetOnSpawn = false
 FOVGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-local adjustedRadius = FOVRadius * 0.8 -- Reduce size slightly
-
 local FOVCircle = Instance.new("Frame")
-FOVCircle.Size = UDim2.new(0, adjustedRadius * 2, 0, adjustedRadius * 2)
+FOVCircle.Size = UDim2.new(0, FOVRadius * 2, 0, FOVRadius * 2)
 FOVCircle.AnchorPoint = Vector2.new(0.5, 0.5)
 FOVCircle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 FOVCircle.BackgroundTransparency = 0.6
 FOVCircle.BorderSizePixel = 0
-FOVCircle.Position = UDim2.new(0.5, 0, 0.5, 0) -- Always center of screen
+FOVCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
 FOVCircle.Parent = FOVGui
 
 local corner = Instance.new("UICorner")

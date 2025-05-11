@@ -81,19 +81,22 @@ local function getValidTarget()
 	local origin = originChar.HumanoidRootPart.Position
 
 	local closest, minDist = nil, MaxDistance
+	local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+	local radius = FOVRadius * 0.8 -- match with adjusted FOV circle
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer and player.Character then
 			local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
 			if humanoid and humanoid.Health > 0 then
-				local part = getHeadTarget(player.Character)
-				if part and isVisible(part) then
-					local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-					local distFromMouse = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
-					local worldDistance = (part.Position - origin).Magnitude
+				local head = getHeadTarget(player.Character)
+				if head and isVisible(head) then
+					local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+					local head2D = Vector2.new(screenPos.X, screenPos.Y)
+					local distanceFromCenter = (head2D - screenCenter).Magnitude
 
-					if onScreen and distFromMouse <= FOVRadius and worldDistance < minDist then
-						closest = part
+					local worldDistance = (head.Position - origin).Magnitude
+					if onScreen and distanceFromCenter <= radius and worldDistance < minDist then
+						closest = head
 						minDist = worldDistance
 					end
 				end

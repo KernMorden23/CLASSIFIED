@@ -16,6 +16,7 @@ local MaxDistance = 1000
 local FOVRadius = 120 -- slightly bigger
 
 local CurrentTarget = nil
+local FakeHeads = {}
 
 --// VISIBILITY CHECK INCLUDING FAKE HEADS
 local function isVisible(part)
@@ -37,7 +38,7 @@ local function isVisible(part)
 	return false
 end
 
---// GET HEAD OR CREATE FAKE HEAD
+--// GET HEAD OR CREATE/REUSE FAKE HEAD EACH FRAME
 local function getHeadTarget(character)
 	local head = character:FindFirstChild("Head")
 	if head then return head end
@@ -45,25 +46,20 @@ local function getHeadTarget(character)
 	local root = character:FindFirstChild("HumanoidRootPart")
 	if not root then return nil end
 
-	local name = "FakeHead_" .. character.Name
-	local existing = workspace:FindFirstChild(name)
-	local offsetY = 1.70
-
-	if existing then
-		existing.CFrame = root.CFrame * CFrame.new(0, offsetY, 0)
-		return existing
+	-- Create or reuse fake head
+	local fakeHead = FakeHeads[character]
+	if not fakeHead or not fakeHead:IsDescendantOf(character) then
+		fakeHead = Instance.new("Part")
+		fakeHead.Name = "FakeHead"
+		fakeHead.Size = Vector3.new(1, 1, 1)
+		fakeHead.Transparency = 1
+		fakeHead.Anchored = true
+		fakeHead.CanCollide = false
+		fakeHead.Parent = character
+		FakeHeads[character] = fakeHead
 	end
 
-	local fakeHead = Instance.new("Part")
-	fakeHead.Name = name
-	fakeHead.Size = Vector3.new(1, 1, 1)
-	fakeHead.Transparency = 1
-	fakeHead.Anchored = true
-	fakeHead.CanCollide = false
-	fakeHead.CFrame = root.CFrame * CFrame.new(0, offsetY, 0)
-	fakeHead.Parent = workspace
-	Debris:AddItem(fakeHead, 0.1)
-
+	fakeHead.CFrame = root.CFrame * CFrame.new(0, 1.70, 0)
 	return fakeHead
 end
 
@@ -75,7 +71,7 @@ local function getValidTarget()
 
 	local closest, minDist = nil, MaxDistance
 	local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-	local radius = FOVRadius -- already adjusted
+	local radius = FOVRadius
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer and player.Character then
@@ -87,7 +83,6 @@ local function getValidTarget()
 					if onScreen then
 						local head2D = Vector2.new(screenPos.X, screenPos.Y)
 						local distanceFromCenter = (head2D - screenCenter).Magnitude
-
 						local worldDistance = (head.Position - origin).Magnitude
 						if distanceFromCenter <= radius and worldDistance < minDist then
 							closest = head
@@ -154,7 +149,10 @@ local function removeESP(player)
 end
 
 Players.PlayerAdded:Connect(createESP)
-Players.PlayerRemoving:Connect(removeESP)
+Players.PlayerRemoving:Connect(function(player)
+	removeESP(player)
+	FakeHeads[player.Character] = nil -- Clean up fake head reference
+end)
 
 for _, player in ipairs(Players:GetPlayers()) do
 	if player ~= LocalPlayer then createESP(player) end
